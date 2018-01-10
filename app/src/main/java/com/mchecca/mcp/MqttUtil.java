@@ -13,13 +13,22 @@ import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import static com.mchecca.mcp.Settings.LOG_TAG;
 
 public class MqttUtil {
     IMqttAsyncClient mqttClient;
+    Activity activity;
+    SmsUtil smsUtil;
+    String sendTopic;
+    String eventTopic;
 
-    public MqttUtil(Activity activity, String mqttUrl) {
+    public MqttUtil(Activity activity, String mqttUrl, String clientId) {
+        smsUtil = new SmsUtil(activity);
+        sendTopic = clientId + "/sms/send";
+        eventTopic = clientId + "/sms/event";
         this.mqttClient = new MqttAndroidClient(activity.getApplicationContext(), mqttUrl, MqttClient.generateClientId());
         this.mqttClient.setCallback(new MqttCallbackExtended() {
             @Override
@@ -27,7 +36,8 @@ public class MqttUtil {
                 Log.i(LOG_TAG, "Connected to " + serverURI);
                 // TODO: Subscribe to topics
                 try {
-                    mqttClient.subscribe("#", 0);
+                    mqttClient.subscribe(sendTopic, 0);
+                    Log.i(LOG_TAG, "Subscribed to: " + sendTopic);
                 } catch (MqttException e) {
                     e.printStackTrace();
                     Log.e(LOG_TAG, "Unable to subscribe to topic");
@@ -42,6 +52,7 @@ public class MqttUtil {
             @Override
             public void messageArrived(String topic, MqttMessage message) throws Exception {
                 Log.d(LOG_TAG, "New Message; Topic: " + topic + ", Message: " + message.toString());
+                handleMessage(topic, message);
             }
 
             @Override
@@ -80,5 +91,28 @@ public class MqttUtil {
             Log.e(LOG_TAG, "Error sending MQTT messsage");
         }
         return false;
+    }
+
+    private void handleMessage(String topic, MqttMessage message) {
+        String msg = new String(message.getPayload());
+        try {
+            JSONObject sendMsg = new JSONObject(msg);
+            String number = sendMsg.getString("number");
+            String smsMessage = sendMsg.getString("message");
+            Log.d(LOG_TAG, "[SMS send] Number: " + number + ", Message: " + smsMessage);
+            if (smsUtil.sendSms(number, smsMessage)) {
+                JSONObject successMsg = new JSONObject();
+                successMsg.put("message", "Sent SMS to " + number);
+                sendMqttMessage(eventTopic, successMsg.toString());
+            } else {
+                throw new Exception("Unable to send SMS message");
+            }
+        } catch (JSONException e) {
+            e.printStackTrace();
+            Log.e(LOG_TAG, "Unable to parse JSON");
+        } catch (Exception e) {
+            e.printStackTrace();
+            Log.e(LOG_TAG, e.getMessage());
+        }
     }
 }

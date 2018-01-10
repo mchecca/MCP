@@ -37,6 +37,7 @@ public class SmsUtil {
 
             sms.sendMultipartTextMessage(number, null, messageParts, sentPendingIntents, null);
             addMessageToSent(number, message);
+            Log.d(LOG_TAG, "Send message \"" + message +  "\"to " + number);
         } catch (Exception e) {
             e.printStackTrace();
             Log.e(LOG_TAG, "undefined Error: SMS sending failed");
