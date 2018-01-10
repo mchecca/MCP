@@ -19,16 +19,20 @@ import org.json.JSONObject;
 import static com.mchecca.mcp.Settings.LOG_TAG;
 
 public class MqttUtil {
+    static MqttUtil instance;
     IMqttAsyncClient mqttClient;
     Activity activity;
     SmsUtil smsUtil;
     String sendTopic;
     String eventTopic;
+    String smsReceivedTopic;
+    SmsListener smsListener;
 
     public MqttUtil(Activity activity, String mqttUrl, String clientId) {
         smsUtil = new SmsUtil(activity);
         sendTopic = clientId + "/sms/send";
         eventTopic = clientId + "/sms/event";
+        smsReceivedTopic = clientId + "/sms/receive";
         this.mqttClient = new MqttAndroidClient(activity.getApplicationContext(), mqttUrl, MqttClient.generateClientId());
         this.mqttClient.setCallback(new MqttCallbackExtended() {
             @Override
@@ -79,9 +83,27 @@ public class MqttUtil {
             ex.printStackTrace();
             Log.e(LOG_TAG, "Error connecting to MQTT server");
         }
+        instance = this;
     }
 
-    public boolean sendMqttMessage(String topic, String message) {
+    public static MqttUtil getInstance() {
+        return instance;
+    }
+
+    public boolean sendNewSmsMessage(String number, String message) {
+        JSONObject smsMessage = new JSONObject();
+        try {
+            smsMessage.put("number", number);
+            smsMessage.put("message", message);
+        } catch (JSONException e) {
+            e.printStackTrace();
+            Log.e(LOG_TAG, "Unable to create SMS JSON");
+            return false;
+        }
+        return sendMqttMessage(smsReceivedTopic, smsMessage.toString());
+    }
+
+    boolean sendMqttMessage(String topic, String message) {
         try {
             MqttMessage mqttMessage = new MqttMessage();
             mqttMessage.setPayload(message.getBytes());
@@ -93,7 +115,7 @@ public class MqttUtil {
         return false;
     }
 
-    private void handleMessage(String topic, MqttMessage message) {
+    void handleMessage(String topic, MqttMessage message) {
         String msg = new String(message.getPayload());
         try {
             JSONObject sendMsg = new JSONObject(msg);
