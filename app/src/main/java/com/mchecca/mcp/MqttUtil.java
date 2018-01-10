@@ -26,6 +26,7 @@ public class MqttUtil {
     String sendTopic;
     String eventTopic;
     String smsReceivedTopic;
+    String pingTopic;
     SmsListener smsListener;
 
     public MqttUtil(Activity activity, String mqttUrl, String clientId) {
@@ -33,6 +34,7 @@ public class MqttUtil {
         sendTopic = clientId + "/sms/send";
         eventTopic = clientId + "/sms/event";
         smsReceivedTopic = clientId + "/sms/receive";
+        pingTopic = clientId + "/ping";
         this.mqttClient = new MqttAndroidClient(activity.getApplicationContext(), mqttUrl, MqttClient.generateClientId());
         this.mqttClient.setCallback(new MqttCallbackExtended() {
             @Override
@@ -40,7 +42,7 @@ public class MqttUtil {
                 Log.i(LOG_TAG, "Connected to " + serverURI);
                 // TODO: Subscribe to topics
                 try {
-                    mqttClient.subscribe(sendTopic, 0);
+                    mqttClient.subscribe(new String[] {sendTopic, pingTopic}, new int[] {0, 0});
                     Log.i(LOG_TAG, "Subscribed to: " + sendTopic);
                 } catch (MqttException e) {
                     e.printStackTrace();
@@ -56,7 +58,12 @@ public class MqttUtil {
             @Override
             public void messageArrived(String topic, MqttMessage message) throws Exception {
                 Log.d(LOG_TAG, "New Message; Topic: " + topic + ", Message: " + message.toString());
-                handleMessage(topic, message);
+                if (topic.equals(sendTopic)) {
+                    JSONObject smsMessage = new JSONObject(new String(message.getPayload()));
+                    handleSmsMessage(smsMessage);
+                } else if (topic.equals(pingTopic)) {
+                    handlePingMessage();
+                }
             }
 
             @Override
@@ -115,10 +122,8 @@ public class MqttUtil {
         return false;
     }
 
-    void handleMessage(String topic, MqttMessage message) {
-        String msg = new String(message.getPayload());
+    void handleSmsMessage(JSONObject sendMsg) {
         try {
-            JSONObject sendMsg = new JSONObject(msg);
             String number = sendMsg.getString("number");
             String smsMessage = sendMsg.getString("message");
             Log.d(LOG_TAG, "[SMS send] Number: " + number + ", Message: " + smsMessage);
@@ -135,6 +140,18 @@ public class MqttUtil {
         } catch (Exception e) {
             e.printStackTrace();
             Log.e(LOG_TAG, e.getMessage());
+        }
+    }
+
+    void handlePingMessage() {
+        JSONObject pingResponse = new JSONObject();
+        try {
+            pingResponse.put("type", "ping");
+            pingResponse.put("date", System.currentTimeMillis() / 1000);
+            sendMqttMessage(eventTopic, pingResponse.toString());
+        } catch (JSONException e) {
+            e.printStackTrace();
+            Log.e(LOG_TAG, "Unable to create ping message");
         }
     }
 }
