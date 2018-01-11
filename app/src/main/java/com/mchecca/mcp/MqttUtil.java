@@ -129,7 +129,10 @@ public class MqttUtil {
             Log.d(LOG_TAG, "[SMS send] Number: " + number + ", Message: " + smsMessage);
             if (smsUtil.sendSms(number, smsMessage)) {
                 JSONObject successMsg = new JSONObject();
-                successMsg.put("message", "Sent SMS to " + number);
+                successMsg.put("type", "sms_sent");
+                successMsg.put("number", number);
+                successMsg.put("message", smsMessage);
+                successMsg.put("success", true);
                 sendMqttMessage(eventTopic, successMsg.toString());
             } else {
                 throw new Exception("Unable to send SMS message");
