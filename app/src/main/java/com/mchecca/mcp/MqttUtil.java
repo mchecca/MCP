@@ -102,6 +102,7 @@ public class MqttUtil {
         try {
             smsMessage.put("number", number);
             smsMessage.put("message", message);
+            smsMessage.put("date", System.currentTimeMillis() / 1000);
         } catch (JSONException e) {
             e.printStackTrace();
             Log.e(LOG_TAG, "Unable to create SMS JSON");
@@ -133,6 +134,7 @@ public class MqttUtil {
                 successMsg.put("number", number);
                 successMsg.put("message", smsMessage);
                 successMsg.put("success", true);
+                successMsg.put("date", System.currentTimeMillis() / 1000);
                 sendMqttMessage(eventTopic, successMsg.toString());
             } else {
                 throw new Exception("Unable to send SMS message");
