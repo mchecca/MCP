@@ -1,29 +1,24 @@
 package com.mchecca.mcp;
 
-import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.net.Uri;
 import android.telephony.SmsManager;
-import android.util.Log;
-
 import java.util.ArrayList;
 
-import static com.mchecca.mcp.Settings.LOG_TAG;
 
 public class SmsUtil {
-    Activity activity;
+    MainActivity activity;
 
-    public SmsUtil(Activity activity) {
+    public SmsUtil(MainActivity activity) {
         this.activity = activity;
     }
 
     public boolean sendSms(String number, String message) {
         try {
-            String SENT = LOG_TAG + "_SMS_SENT";
-            Intent myIntent = new Intent(SENT);
+            Intent myIntent = new Intent("com.mchecca.mcp.SmsUtil");
             PendingIntent sentPI = PendingIntent.getBroadcast(activity.getApplicationContext(), 0, myIntent, 0);
 
             SmsManager sms = SmsManager.getDefault();
@@ -37,10 +32,10 @@ public class SmsUtil {
 
             sms.sendMultipartTextMessage(number, null, messageParts, sentPendingIntents, null);
             addMessageToSent(number, message);
-            Log.d(LOG_TAG, "Send message \"" + message +  "\"to " + number);
+            activity.logDebug("Send message \"" + message +  "\"to " + number);
         } catch (Exception e) {
             e.printStackTrace();
-            Log.e(LOG_TAG, "undefined Error: SMS sending failed");
+            activity.logError("Undefined Error: SMS sending failed");
             return false;
         }
         return true;

@@ -1,8 +1,5 @@
 package com.mchecca.mcp;
 
-import android.app.Activity;
-import android.util.Log;
-
 import org.eclipse.paho.android.service.MqttAndroidClient;
 import org.eclipse.paho.client.mqttv3.IMqttActionListener;
 import org.eclipse.paho.client.mqttv3.IMqttAsyncClient;
@@ -16,20 +13,17 @@ import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import static com.mchecca.mcp.Settings.LOG_TAG;
-
 public class MqttUtil {
     static MqttUtil instance;
     IMqttAsyncClient mqttClient;
-    Activity activity;
+    MainActivity activity;
     SmsUtil smsUtil;
     String sendTopic;
     String eventTopic;
     String smsReceivedTopic;
     String pingTopic;
-    SmsListener smsListener;
 
-    public MqttUtil(Activity activity, String mqttUrl, String clientId) {
+    public MqttUtil(final MainActivity activity, String mqttUrl, String clientId) {
         smsUtil = new SmsUtil(activity);
         sendTopic = clientId + "/sms/send";
         eventTopic = clientId + "/sms/event";
@@ -39,25 +33,25 @@ public class MqttUtil {
         this.mqttClient.setCallback(new MqttCallbackExtended() {
             @Override
             public void connectComplete(boolean reconnect, String serverURI) {
-                Log.i(LOG_TAG, "Connected to " + serverURI);
+                activity.logInfo("Connected to " + serverURI);
                 // TODO: Subscribe to topics
                 try {
                     mqttClient.subscribe(new String[] {sendTopic, pingTopic}, new int[] {0, 0});
-                    Log.i(LOG_TAG, "Subscribed to: " + sendTopic);
+                    activity.logMessage("Subscribed to: " + sendTopic);
                 } catch (MqttException e) {
                     e.printStackTrace();
-                    Log.e(LOG_TAG, "Unable to subscribe to topic");
+                    activity.logError("Unable to subscribe to topic");
                 }
             }
 
             @Override
             public void connectionLost(Throwable cause) {
-                Log.i(LOG_TAG, "Lost connection: " + cause.getMessage());
+                activity.logInfo("Lost connection: " + cause.getMessage());
             }
 
             @Override
             public void messageArrived(String topic, MqttMessage message) throws Exception {
-                Log.d(LOG_TAG, "New Message; Topic: " + topic + ", Message: " + message.toString());
+                activity.logDebug("New Message; Topic: " + topic + ", Message: " + message.toString());
                 if (topic.equals(sendTopic)) {
                     JSONObject smsMessage = new JSONObject(new String(message.getPayload()));
                     handleSmsMessage(smsMessage);
@@ -68,7 +62,7 @@ public class MqttUtil {
 
             @Override
             public void deliveryComplete(IMqttDeliveryToken token) {
-                Log.d(LOG_TAG, "Delivered message id: " + token.getMessageId());
+                activity.logDebug("Delivered message id: " + token.getMessageId());
             }
         });
         MqttConnectOptions options = new MqttConnectOptions();
@@ -78,17 +72,17 @@ public class MqttUtil {
             mqttClient.connect(options, null, new IMqttActionListener() {
                 @Override
                 public void onSuccess(IMqttToken asyncActionToken) {
-                    Log.i(LOG_TAG, "Successful connection");
+                    activity.logInfo("Successful connection");
                 }
 
                 @Override
                 public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-                    Log.i(LOG_TAG, "Failed connection: " + exception.getMessage());
+                    activity.logInfo("Failed connection: " + exception.getMessage());
                 }
             });
         } catch (MqttException ex) {
             ex.printStackTrace();
-            Log.e(LOG_TAG, "Error connecting to MQTT server");
+            activity.logError("Error connecting to MQTT server");
         }
         instance = this;
     }
@@ -105,7 +99,7 @@ public class MqttUtil {
             smsMessage.put("date", System.currentTimeMillis() / 1000);
         } catch (JSONException e) {
             e.printStackTrace();
-            Log.e(LOG_TAG, "Unable to create SMS JSON");
+            activity.logError("Unable to create SMS JSON");
             return false;
         }
         return sendMqttMessage(smsReceivedTopic, smsMessage.toString());
@@ -118,7 +112,7 @@ public class MqttUtil {
             mqttClient.publish(topic, mqttMessage);
         } catch (Exception e) {
             e.printStackTrace();
-            Log.e(LOG_TAG, "Error sending MQTT messsage");
+            activity.logError("Error sending MQTT messsage");
         }
         return false;
     }
@@ -127,7 +121,7 @@ public class MqttUtil {
         try {
             String number = sendMsg.getString("number");
             String smsMessage = sendMsg.getString("message");
-            Log.d(LOG_TAG, "[SMS send] Number: " + number + ", Message: " + smsMessage);
+            activity.logDebug("[SMS send] Number: " + number + ", Message: " + smsMessage);
             if (smsUtil.sendSms(number, smsMessage)) {
                 JSONObject successMsg = new JSONObject();
                 successMsg.put("type", "sms_sent");
@@ -141,10 +135,10 @@ public class MqttUtil {
             }
         } catch (JSONException e) {
             e.printStackTrace();
-            Log.e(LOG_TAG, "Unable to parse JSON");
+            activity.logError("Unable to parse JSON");
         } catch (Exception e) {
             e.printStackTrace();
-            Log.e(LOG_TAG, e.getMessage());
+            activity.logError(e.getMessage());
         }
     }
 
@@ -156,7 +150,7 @@ public class MqttUtil {
             sendMqttMessage(eventTopic, pingResponse.toString());
         } catch (JSONException e) {
             e.printStackTrace();
-            Log.e(LOG_TAG, "Unable to create ping message");
+            activity.logError("Unable to create ping message");
         }
     }
 }
