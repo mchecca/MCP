@@ -21,22 +21,26 @@ public class MqttUtil {
     String sendTopic;
     String eventTopic;
     String smsReceivedTopic;
-    String pingTopic;
+    String connectedTopic;
 
     public MqttUtil(final MainActivity activity, String mqttUrl, String clientId) {
+        if (!mqttUrl.startsWith("tcp://")) {
+            mqttUrl = "tcp://" + mqttUrl;
+        }
         smsUtil = new SmsUtil(activity);
         sendTopic = clientId + "/sms/send";
         eventTopic = clientId + "/sms/event";
         smsReceivedTopic = clientId + "/sms/receive";
-        pingTopic = clientId + "/ping";
+        connectedTopic = clientId + "/connected";
+        this.activity = activity;
         this.mqttClient = new MqttAndroidClient(activity.getApplicationContext(), mqttUrl, MqttClient.generateClientId());
         this.mqttClient.setCallback(new MqttCallbackExtended() {
             @Override
             public void connectComplete(boolean reconnect, String serverURI) {
                 activity.logInfo("Connected to " + serverURI);
-                // TODO: Subscribe to topics
+                sendMqttMessage(connectedTopic, "true", true);
                 try {
-                    mqttClient.subscribe(new String[] {sendTopic, pingTopic}, new int[] {0, 0});
+                    mqttClient.subscribe(sendTopic, 2);
                     activity.logMessage("Subscribed to: " + sendTopic);
                 } catch (MqttException e) {
                     e.printStackTrace();
@@ -55,8 +59,6 @@ public class MqttUtil {
                 if (topic.equals(sendTopic)) {
                     JSONObject smsMessage = new JSONObject(new String(message.getPayload()));
                     handleSmsMessage(smsMessage);
-                } else if (topic.equals(pingTopic)) {
-                    handlePingMessage();
                 }
             }
 
@@ -66,6 +68,7 @@ public class MqttUtil {
             }
         });
         MqttConnectOptions options = new MqttConnectOptions();
+        options.setWill(connectedTopic, "false".getBytes(), 2, true);
         options.setAutomaticReconnect(true);
         options.setCleanSession(true);
         try {
@@ -106,9 +109,15 @@ public class MqttUtil {
     }
 
     boolean sendMqttMessage(String topic, String message) {
+        return sendMqttMessage(topic, message, false);
+    }
+
+    boolean sendMqttMessage(String topic, String message, boolean retained) {
         try {
             MqttMessage mqttMessage = new MqttMessage();
             mqttMessage.setPayload(message.getBytes());
+            mqttMessage.setRetained(retained);
+            mqttMessage.setQos(2);
             mqttClient.publish(topic, mqttMessage);
         } catch (Exception e) {
             e.printStackTrace();
@@ -131,6 +140,10 @@ public class MqttUtil {
                 successMsg.put("date", System.currentTimeMillis() / 1000);
                 sendMqttMessage(eventTopic, successMsg.toString());
             } else {
+                JSONObject errorMsg = new JSONObject();
+                errorMsg.put("type", "error");
+                errorMsg.put("message", "Unable to send SMS message");
+                sendMqttMessage(eventTopic, errorMsg.toString());
                 throw new Exception("Unable to send SMS message");
             }
         } catch (JSONException e) {
@@ -139,18 +152,6 @@ public class MqttUtil {
         } catch (Exception e) {
             e.printStackTrace();
             activity.logError(e.getMessage());
-        }
-    }
-
-    void handlePingMessage() {
-        JSONObject pingResponse = new JSONObject();
-        try {
-            pingResponse.put("type", "ping");
-            pingResponse.put("date", System.currentTimeMillis() / 1000);
-            sendMqttMessage(eventTopic, pingResponse.toString());
-        } catch (JSONException e) {
-            e.printStackTrace();
-            activity.logError("Unable to create ping message");
         }
     }
 }
