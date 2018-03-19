@@ -10,6 +10,7 @@ import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -20,6 +21,8 @@ public class MqttUtil {
     SmsUtil smsUtil;
     String sendTopic;
     String eventTopic;
+    String rpcRequestTopic;
+    String rpcReplyTopic;
     String smsReceivedTopic;
     String connectedTopic;
 
@@ -30,6 +33,8 @@ public class MqttUtil {
         smsUtil = new SmsUtil(activity);
         sendTopic = clientId + "/sms/send";
         eventTopic = clientId + "/sms/event";
+        rpcRequestTopic = clientId + "/rpc/request";
+        rpcReplyTopic = clientId + "/rpc/reply";
         smsReceivedTopic = clientId + "/sms/receive";
         connectedTopic = clientId + "/connected";
         this.activity = activity;
@@ -40,7 +45,7 @@ public class MqttUtil {
                 activity.logInfo("Connected to " + serverURI);
                 sendMqttMessage(connectedTopic, "true", true);
                 try {
-                    mqttClient.subscribe(sendTopic, 2);
+                    mqttClient.subscribe(new String[] {sendTopic, rpcRequestTopic}, new int[] {2, 2});
                     activity.logMessage("Subscribed to: " + sendTopic);
                 } catch (MqttException e) {
                     e.printStackTrace();
@@ -59,6 +64,9 @@ public class MqttUtil {
                 if (topic.equals(sendTopic)) {
                     JSONObject smsMessage = new JSONObject(new String(message.getPayload()));
                     handleSmsMessage(smsMessage);
+                } else if (topic.equals(rpcRequestTopic)) {
+                    JSONObject commandMsg = new JSONObject(new String(message.getPayload()));
+                    handleRpcRequestMessage(commandMsg);
                 }
             }
 
@@ -105,7 +113,11 @@ public class MqttUtil {
             activity.logError("Unable to create SMS JSON");
             return false;
         }
-        return sendMqttMessage(smsReceivedTopic, smsMessage.toString());
+        return sendMqttMessage(smsReceivedTopic, smsMessage);
+    }
+
+    boolean sendMqttMessage(String topic, JSONObject jsonMessage) {
+        return sendMqttMessage(topic, jsonMessage.toString());
     }
 
     boolean sendMqttMessage(String topic, String message) {
@@ -126,6 +138,18 @@ public class MqttUtil {
         return false;
     }
 
+    boolean sendMqttErrorMessage(String topic, String errorMessage) {
+        try {
+            JSONObject errorMsg = new JSONObject();
+            errorMsg.put("type", "error");
+            errorMsg.put("message", errorMessage);
+            return sendMqttMessage(topic, errorMsg);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
     void handleSmsMessage(JSONObject sendMsg) {
         try {
             String number = sendMsg.getString("number");
@@ -138,13 +162,41 @@ public class MqttUtil {
                 successMsg.put("message", smsMessage);
                 successMsg.put("success", true);
                 successMsg.put("date", System.currentTimeMillis() / 1000);
-                sendMqttMessage(eventTopic, successMsg.toString());
+                sendMqttMessage(eventTopic, successMsg);
             } else {
-                JSONObject errorMsg = new JSONObject();
-                errorMsg.put("type", "error");
-                errorMsg.put("message", "Unable to send SMS message");
-                sendMqttMessage(eventTopic, errorMsg.toString());
+                sendMqttErrorMessage(eventTopic, "Unable to send SMS message");
                 throw new Exception("Unable to send SMS message");
+            }
+        } catch (JSONException e) {
+            e.printStackTrace();
+            activity.logError("Unable to parse JSON");
+        } catch (Exception e) {
+            e.printStackTrace();
+            activity.logError(e.getMessage());
+        }
+    }
+
+    void handleRpcRequestMessage(JSONObject requestMsg) {
+        try {
+            if (!requestMsg.has("id")) {
+                sendMqttErrorMessage(rpcReplyTopic, "RPC with empty id");
+                throw new Exception("RPC with empty id");
+            }
+            String id = requestMsg.getString("id");
+            String command = requestMsg.getString("command");
+            if (command.equals("list sms")) {
+                JSONArray smsList = new JSONArray();
+                for (Sms s : smsUtil.getOrderedSMS(10)) {
+                    smsList.put(s.toJson());
+                }
+                JSONObject smsReply = new JSONObject();
+                smsReply.put("id", id);
+                smsReply.put("sms", smsList);
+                sendMqttMessage(rpcReplyTopic, smsReply);
+            } else {
+                String commandErrMsg = "Invalid command: " + command;
+                sendMqttErrorMessage(rpcReplyTopic, commandErrMsg);
+                throw new Exception(commandErrMsg);
             }
         } catch (JSONException e) {
             e.printStackTrace();
