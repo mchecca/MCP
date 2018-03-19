@@ -2,6 +2,7 @@ package com.mchecca.mcp;
 
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.text.format.DateFormat;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -39,7 +40,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     protected void logMessage(String message) {
-        String logMsg = new Date().toString() + ": " + message + "\n";
+        String dateString = DateFormat.format("yyyy-MM-dd kk:mm:ss", new Date()).toString();
+        String logMsg = dateString + ": " + message + "\n";
         logEditText.append(logMsg);
     }
 
