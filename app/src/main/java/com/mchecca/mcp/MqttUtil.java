@@ -27,9 +27,20 @@ public class MqttUtil {
     String connectedTopic;
 
     public MqttUtil(final MainActivity activity, String mqttUrl, String clientId) {
-        if (!mqttUrl.startsWith("tcp://")) {
-            mqttUrl = "tcp://" + mqttUrl;
+        String mqttIpPort = "tcp://";
+        String username = "";
+        String password = "";
+        // Check to see if username and password was supplied via the URL
+        if (mqttUrl.contains("@")) {
+            String[] split = mqttUrl.split("@");
+            String[] usernamePasswordSplit = split[0].split(":");
+            username = usernamePasswordSplit[0];
+            password = usernamePasswordSplit[1];
+            mqttIpPort += split[1];
+        } else {
+            mqttIpPort += mqttUrl;
         }
+
         smsUtil = new SmsUtil(activity);
         sendTopic = clientId + "/sms/send";
         eventTopic = clientId + "/sms/event";
@@ -38,7 +49,7 @@ public class MqttUtil {
         smsReceivedTopic = clientId + "/sms/receive";
         connectedTopic = clientId + "/connected";
         this.activity = activity;
-        this.mqttClient = new MqttAndroidClient(activity.getApplicationContext(), mqttUrl, MqttClient.generateClientId());
+        this.mqttClient = new MqttAndroidClient(activity.getApplicationContext(), mqttIpPort, MqttClient.generateClientId());
         this.mqttClient.setCallback(new MqttCallbackExtended() {
             @Override
             public void connectComplete(boolean reconnect, String serverURI) {
@@ -77,6 +88,10 @@ public class MqttUtil {
         });
         MqttConnectOptions options = new MqttConnectOptions();
         options.setWill(connectedTopic, "false".getBytes(), 2, true);
+        if (username.length() > 0 && password.length() > 0) {
+            options.setUserName(username);
+            options.setPassword(password.toCharArray());
+        }
         options.setAutomaticReconnect(true);
         options.setCleanSession(true);
         try {

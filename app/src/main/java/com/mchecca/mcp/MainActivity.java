@@ -1,5 +1,7 @@
 package com.mchecca.mcp;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.text.format.DateFormat;
@@ -13,6 +15,9 @@ import java.util.Date;
 import static com.mchecca.mcp.Settings.LOG_TAG;
 
 public class MainActivity extends AppCompatActivity {
+    static String MQTT_URL_KEY = "mqttUrl";
+    static String CLIENT_ID_KEY = "clientId";
+
     MqttUtil mqttUtil;
     Button connectButton;
     EditText clientIdEditText;
@@ -28,6 +33,17 @@ public class MainActivity extends AppCompatActivity {
         mqttServerEditText = findViewById(R.id.mqttServerEditText);
         logEditText = findViewById(R.id.logEditText);
 
+        // Load settings
+        final SharedPreferences sharedPrefs = getPreferences(Context.MODE_PRIVATE);
+        String mqttUrl = sharedPrefs.getString(MQTT_URL_KEY, "");
+        String clientId = sharedPrefs.getString(CLIENT_ID_KEY, "");
+        if (mqttUrl.length() > 0) {
+            mqttServerEditText.setText(mqttUrl);
+        }
+        if (clientId.length() > 0) {
+            clientIdEditText.setText(clientId);
+        }
+
         final MainActivity mainActivity = this;
         connectButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -35,6 +51,11 @@ public class MainActivity extends AppCompatActivity {
                 String mqttUrl = mqttServerEditText.getText().toString();
                 String clientId = clientIdEditText.getText().toString();
                 mqttUtil = new MqttUtil(mainActivity, mqttUrl, clientId);
+                // Save settings
+                SharedPreferences.Editor editor = sharedPrefs.edit();
+                editor.putString(MQTT_URL_KEY, mqttUrl);
+                editor.putString(CLIENT_ID_KEY, clientId);
+                editor.commit();
             }
         });
     }
