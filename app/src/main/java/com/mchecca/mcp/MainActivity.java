@@ -1,7 +1,11 @@
 package com.mchecca.mcp;
 
+import android.Manifest;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.text.format.DateFormat;
@@ -17,6 +21,16 @@ import static com.mchecca.mcp.Settings.LOG_TAG;
 public class MainActivity extends AppCompatActivity {
     static String MQTT_URL_KEY = "mqttUrl";
     static String CLIENT_ID_KEY = "clientId";
+    static String[] PERMISSIONS = new String[] {
+            Manifest.permission.SEND_SMS,
+            Manifest.permission.RECEIVE_SMS,
+            Manifest.permission.READ_PHONE_STATE,
+            Manifest.permission.WAKE_LOCK,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            Manifest.permission.ACCESS_NETWORK_STATE,
+            Manifest.permission.READ_EXTERNAL_STORAGE,
+            Manifest.permission.INTERNET
+    };
 
     MqttUtil mqttUtil;
     Button connectButton;
@@ -32,6 +46,10 @@ public class MainActivity extends AppCompatActivity {
         clientIdEditText = findViewById(R.id.clientIdEditText);
         mqttServerEditText = findViewById(R.id.mqttServerEditText);
         logEditText = findViewById(R.id.logEditText);
+
+        if (!checkPermissions()) {
+            ActivityCompat.requestPermissions(this, PERMISSIONS, 0);
+        }
 
         // Load settings
         final SharedPreferences sharedPrefs = getPreferences(Context.MODE_PRIVATE);
@@ -58,6 +76,25 @@ public class MainActivity extends AppCompatActivity {
                 editor.commit();
             }
         });
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
+        if (checkPermissions()) {
+            logInfo("All permissions granted");
+        }
+    }
+
+    protected boolean checkPermissions() {
+        for (String p : PERMISSIONS) {
+            if (ContextCompat.checkSelfPermission(this, p) != PackageManager.PERMISSION_GRANTED) {
+                connectButton.setEnabled(false);
+                logError("Missing permission: " + p);
+                return false;
+            }
+        }
+        connectButton.setEnabled(true);
+        return true;
     }
 
     protected void logMessage(String message) {
