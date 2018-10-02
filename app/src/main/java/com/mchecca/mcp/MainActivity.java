@@ -23,6 +23,7 @@ public class MainActivity extends AppCompatActivity {
     static String CLIENT_ID_KEY = "clientId";
     static String[] PERMISSIONS = new String[] {
             Manifest.permission.SEND_SMS,
+            Manifest.permission.READ_SMS,
             Manifest.permission.RECEIVE_SMS,
             Manifest.permission.READ_PHONE_STATE,
             Manifest.permission.WAKE_LOCK,
